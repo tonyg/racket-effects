@@ -45,22 +45,18 @@
 (define (handle* shallow? tag body-thunk action-proc result-proc)
   (define p (effect-tag-prompt tag))
   (let run ((body-thunk body-thunk))
-    (call-with-values (lambda ()
-                        (call-with-continuation-prompt
-                         (lambda () (call-with-values
-                                     body-thunk
-                                     (lambda results
-                                       (abort/cc p (lambda () (result results))))))
-                         p))
-                      (match-lambda
-                        [(instruction action k)
-                         (action-proc action
-                                      (if shallow?
-                                          k
-                                          (lambda vs
-                                            (run (lambda () (apply k vs))))))]
-                        [(result vs)
-                         (apply result-proc vs)]))))
+    (match (call-with-continuation-prompt (lambda ()
+                                            (call-with-values
+                                             body-thunk
+                                             (lambda results
+                                               (abort/cc p (lambda () (result results))))))
+                                          p)
+      [(instruction action k)
+       (action-proc action (if shallow?
+                               k
+                               (lambda vs (run (lambda () (apply k vs))))))]
+      [(result vs)
+       (apply result-proc vs)])))
 
 (define-syntax shallow-or-deep
   (syntax-rules ()
